@@ -1,0 +1,54 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidFileSize() {
+      return request.resource.size < 25 * 1024 * 1024; // Max 25 MB
+    }
+
+    function isAllowedImageOrDoc() {
+      return request.resource.contentType.matches('image/.*')
+          || request.resource.contentType.matches('application/pdf')
+          || request.resource.contentType.matches('application/vnd.openxmlformats-officedocument.*')
+          || request.resource.contentType.matches('application/zip');
+    }
+
+    // User Profile Pictures
+    match /profile_images/{userId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) && isValidFileSize() && request.resource.contentType.matches('image/.*');
+    }
+
+    // Assignment Submissions
+    match /assignment_submissions/{studentId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(studentId) && isValidFileSize() && isAllowedImageOrDoc();
+    }
+
+    // Library E-Books & Documents
+    match /library_files/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && isValidFileSize() && isAllowedImageOrDoc();
+    }
+
+    // Admission Documents
+    match /admission_documents/{applicantId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(applicantId) && isValidFileSize() && isAllowedImageOrDoc();
+    }
+
+    // Resume Attachments
+    match /resumes/{studentId}/{fileName} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(studentId) && isValidFileSize() && isAllowedImageOrDoc();
+    }
+  }
+}

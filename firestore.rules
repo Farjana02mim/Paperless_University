@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions for Role-Based Access Control (RBAC)
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('Admin') || hasRole('ADMIN');
+    }
+
+    function isTeacher() {
+      return hasRole('Teacher') || hasRole('TEACHER') || isAdmin();
+    }
+
+    function isStudent() {
+      return hasRole('Student') || hasRole('STUDENT');
+    }
+
+    function isFinanceOfficer() {
+      return hasRole('Finance Officer') || hasRole('FINANCE_OFFICER') || isAdmin();
+    }
+
+    function isLibrarian() {
+      return hasRole('Librarian') || hasRole('LIBRARIAN') || isAdmin();
+    }
+
+    // User Accounts & Profiles
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isOwner(userId) || isAdmin();
+    }
+
+    // Students Collection
+    match /students/{studentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Attendance Records
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isTeacher();
+      allow delete: if isAdmin();
+    }
+
+    // Notice Board & Announcements
+    match /notices/{noticeId} {
+      allow read: if isAuthenticated();
+      allow write: if isTeacher() || isAdmin();
+    }
+
+    // Academic Course Marks & Exam Results
+    match /course_results/{resultId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isTeacher() || isAdmin());
+      allow write: if isTeacher() || isAdmin();
+    }
+
+    // Financial Invoices & Payments
+    match /invoices/{invoiceId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isFinanceOfficer());
+      allow write: if isFinanceOfficer();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isAuthenticated() && (resource.data.studentId == request.auth.uid || isFinanceOfficer());
+      allow create: if isAuthenticated() && request.resource.data.amount > 0;
+      allow update, delete: if isFinanceOfficer();
+    }
+
+    // Digital Library Resources
+    match /library_resources/{resourceId} {
+      allow read: if isAuthenticated();
+      allow write: if isLibrarian() || isTeacher();
+    }
+
+    // Online Admissions
+    match /admission_applications/{appId} {
+      allow read: if isAuthenticated() && (resource.data.applicantId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Career Jobs & Applications
+    match /job_postings/{jobId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /job_applications/{appId} {
+      allow read: if isAuthenticated() && (resource.data.applicantId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    // Audit Logging Collection
+    match /audit_logs/{logId} {
+      allow read: if isAdmin() || isFinanceOfficer();
+      allow create: if isAuthenticated();
+      allow update, delete: if false; // Audit logs are immutable once created
+    }
+
+    // Default Fallback Rule - Reject unhandled paths
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

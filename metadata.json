@@ -1,0 +1,6 @@
+{
+  "name": "Smart Paperless University Management System",
+  "description": "One App, One Smart Campus - Modern University Management System for Students, Teachers, and Administrators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
